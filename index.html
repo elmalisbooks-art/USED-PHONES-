@@ -32,30 +32,213 @@
 <div class="group"><label for="fphone">WhatsApp number *</label><input class="field" id="fphone" type="tel" required placeholder="e.g. 0712345678" maxlength="20"></div>
 <div class="group full"><label for="fimage">Phone photo (optional)</label><input class="field" id="fimage" type="file" accept="image/*"><span class="note">Choose an image under 600 KB for this demo.</span></div>
 <div class="group full"><label for="fdesc">Description</label><textarea class="field" id="fdesc" maxlength="500" placeholder="Battery health, accessories, faults, or other details"></textarea></div>
-</div><p class="note">Demo note: listings are stored in this browser only. A live multi-user marketplace needs a database and server.</p><button class="btn primary" type="submit" style="width:100%">Publish listing</button></form></div></div><div class="toast" id="toast" role="status"></div>
+</div><p class="note">Demo note: listings are stored in this browser only. A live multi-user marketplace needs a database and server.</p><button class="btn primary" type="submit" style="width:100%">Publish listing</button></form></div></div><div class="toast" id="toast" role="status">
+  
+</div> 
 <script>
-const demo=[
-{id:1,brand:"Apple",model:"iPhone 12",price:28500,condition:"Very good",storage:"128GB",location:"Nairobi CBD",seller:"Kevin",phone:"0712345678",desc:"Face ID working, clean screen, charging cable included.",emoji:"📱",created:Date.now()-3000},
-{id:2,brand:"Samsung",model:"Galaxy A54",price:22000,condition:"Good",storage:"128GB",location:"Thika",seller:"Mary",phone:"0723456789",desc:"Works well with minor marks on the back.",emoji:"📱",created:Date.now()-8000},
-{id:3,brand:"Tecno",model:"Camon 20",price:12500,condition:"Very good",storage:"256GB",location:"Mombasa",seller:"Brian",phone:"0701234567",desc:"Good camera and battery. Box included.",emoji:"📱",created:Date.now()-18000},
-{id:4,brand:"Infinix",model:"Note 30",price:14000,condition:"Good",storage:"128GB",location:"Kisumu",seller:"Faith",phone:"0798765432",desc:"Fast charging; all functions working.",emoji:"📱",created:Date.now()-25000},
-{id:5,brand:"Apple",model:"iPhone 11",price:21500,condition:"Good",storage:"64GB",location:"Nakuru",seller:"Dennis",phone:"0745678901",desc:"Battery health 85%; cameras and speakers tested.",emoji:"📱",created:Date.now()-30000},
-{id:6,brand:"Samsung",model:"Galaxy S21",price:26000,condition:"Very good",storage:"128GB",location:"Nairobi Westlands",seller:"Amina",phone:"0756789012",desc:"Unlocked, no cracks, ready to use.",emoji:"📱",created:Date.now()-40000}
-];
-const KEY="phonemarket_ke_v1";let phones;try{const x=JSON.parse(localStorage.getItem(KEY)||"null");phones=Array.isArray(x)?x:demo}catch(e){phones=demo}let saved=new Set();
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const money=n=>"KSh "+Number(n).toLocaleString("en-KE");
-function wa(phone){let n=String(phone).replace(/\D/g,"");if(n.startsWith("0"))n="254"+n.slice(1);return "https://wa.me/"+n}
-function render(arr=phones){document.getElementById("count").textContent=arr.length+" listing"+(arr.length===1?"":"s");const root=document.getElementById("listings");if(!arr.length){root.innerHTML='<div class="empty">No phones found. Try another search or clear your filters.<br><button class="btn light" onclick="clearFilters()">Clear filters</button></div>';return}root.innerHTML=arr.map(p=>`<article class="card"><div class="photo">${p.image?`<img src="${p.image}" alt="${esc(p.brand+" "+p.model)}">`:esc(p.emoji||"📱")}<span class="tag">${esc(p.condition)}</span><button class="heart" onclick="favorite(${p.id})" aria-label="Save listing">${saved.has(p.id)?"♥":"♡"}</button></div><div class="body"><h3>${esc(p.brand)} ${esc(p.model)}</h3><div class="price">${money(p.price)}</div><div class="details"><span>💾 ${esc(p.storage||"Not specified")}</span><span>📍 ${esc(p.location)}</span></div><p class="desc">${esc(p.desc||"Contact seller for details.")}</p><div class="sellerrow"><span class="seller">Seller: ${esc(p.seller)}</span><a class="btn primary small" href="${wa(p.phone)}?text=${encodeURIComponent("Hi "+p.seller+", I'm interested in your "+p.brand+" "+p.model+" on PhoneMarket KE.")}" target="_blank" rel="noopener">WhatsApp ↗</a></div></div></article>`).join("")}
-function filterPhones(){const q=document.getElementById("q").value.trim().toLowerCase(),b=document.getElementById("brand").value,s=document.getElementById("sort").value;let a=phones.filter(p=>(!b||p.brand===b)&&(!q||[p.brand,p.model,p.location,p.condition,p.storage,p.desc].join(" ").toLowerCase().includes(q)));if(s==="low")a.sort((x,y)=>x.price-y.price);else if(s==="high")a.sort((x,y)=>y.price-x.price);else a.sort((x,y)=>y.created-x.created);render(a)}
-function pick(b){document.getElementById("brand").value=b;document.getElementById("q").value="";filterPhones();document.getElementById("phones").scrollIntoView({behavior:"smooth"})}
-function clearFilters(){document.getElementById("brand").value="";document.getElementById("q").value="";document.getElementById("sort").value="new";filterPhones()}
-function favorite(id){saved.has(id)?saved.delete(id):saved.add(id);filterPhones()}
-function openForm(){document.getElementById("modal").classList.add("open");document.body.style.overflow="hidden"}
-function closeForm(){document.getElementById("modal").classList.remove("open");document.body.style.overflow=""}
-function toast(s){let t=document.getElementById("toast");t.textContent=s;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),3200)}
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(phones))}catch(e){toast("Browser storage is full. Try a smaller photo.")}}
-document.getElementById("sellForm").addEventListener("submit",async e=>{e.preventDefault();let file=document.getElementById("fimage").files[0],image="";if(file){if(file.size>600000){toast("Please choose a photo under 600 KB.");return}image=await new Promise((res,rej)=>{let r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}let p={id:Date.now(),brand:fbrand.value,model:fmodel.value.trim(),price:Number(fprice.value),condition:fcondition.value,storage:fstorage.value,location:flocation.value.trim(),seller:fseller.value.trim(),phone:fphone.value.trim(),desc:fdesc.value.trim(),image,emoji:"📱",created:Date.now()};phones.unshift(p);persist();e.target.reset();closeForm();clearFilters();document.getElementById("phones").scrollIntoView({behavior:"smooth"});toast("Listing added in this browser.")});
-document.getElementById("q").addEventListener("input",filterPhones);document.getElementById("brand").addEventListener("change",filterPhones);document.getElementById("sort").addEventListener("change",filterPhones);document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")closeForm()});document.addEventListener("keydown",e=>{if(e.key==="Escape")closeForm()});document.getElementById("year").textContent=new Date().getFullYear();render();
+const API = "https://used-phones-backend-c0w6.onrender.com/api/phones";
+
+let phones = [];
+let saved = new Set();
+
+const $ = id => document.getElementById(id);
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
+  "&":"&amp;", "<":"&lt;", ">":"&gt;",
+  '"':"&quot;", "'":"&#39;"
+}[c]));
+
+const money = n => "KSh " + Number(n || 0).toLocaleString("en-KE");
+
+function wa(phone) {
+  let n = String(phone || "").replace(/\D/g, "");
+  if (n.startsWith("0")) n = "254" + n.slice(1);
+  return "https://wa.me/" + n;
+}
+
+function render(arr = phones) {
+  $("count").textContent =
+    arr.length + " listing" + (arr.length === 1 ? "" : "s");
+
+  const root = $("listings");
+
+  if (!arr.length) {
+    root.innerHTML = `
+      <div class="empty">
+        No phones listed yet. You can publish the first listing!
+      </div>`;
+    return;
+  }
+
+  root.innerHTML = arr.map(p => {
+    const id = JSON.stringify(p.id);
+    const seller = p.seller || "Seller";
+    const phone = p.whatsapp || "";
+    const desc = p.description || "Contact seller for details.";
+    const photo = p.photo_url
+      ? `<img src="${esc(p.photo_url)}" alt="${esc(p.brand + " " + p.model)}">`
+      : "📱";
+
+    return `
+      <article class="card">
+        <div class="photo">
+          ${photo}
+          <span class="tag">${esc(p.condition || "Used")}</span>
+          <button class="heart" onclick="favorite(${id})"
+            aria-label="Save listing">${saved.has(String(p.id)) ? "♥" : "♡"}</button>
+        </div>
+        <div class="body">
+          <h3>${esc(p.brand)} ${esc(p.model)}</h3>
+          <div class="price">${money(p.price)}</div>
+          <div class="details">
+            <span>💾 ${esc(p.storage || "Not specified")}</span>
+            <span>📍 ${esc(p.location || "Not specified")}</span>
+          </div>
+          <p class="desc">${esc(desc)}</p>
+          <div class="sellerrow">
+            <span class="seller">Seller: ${esc(seller)}</span>
+            <a class="btn primary small"
+              href="${wa(phone)}?text=${encodeURIComponent("Hi " + seller + ", I'm interested in your " + p.brand + " " + p.model + " on PhoneMarket KE.")}"
+              target="_blank" rel="noopener">WhatsApp ↗</a>
+          </div>
+        </div>
+      </article>`;
+  }).join("");
+}
+
+function filterPhones() {
+  const q = $("q").value.trim().toLowerCase();
+  const b = $("brand").value;
+  const s = $("sort").value;
+
+  let a = phones.filter(p =>
+    (!b || p.brand === b) &&
+    (!q || [
+      p.brand, p.model, p.location, p.condition,
+      p.storage, p.description
+    ].join(" ").toLowerCase().includes(q))
+  );
+
+  if (s === "low") a.sort((x, y) => Number(x.price) - Number(y.price));
+  else if (s === "high") a.sort((x, y) => Number(y.price) - Number(x.price));
+  else a.sort((x, y) =>
+    new Date(y.createdAt || 0) - new Date(x.createdAt || 0)
+  );
+
+  render(a);
+}
+
+function pick(b) {
+  $("brand").value = b;
+  $("q").value = "";
+  filterPhones();
+  $("phones").scrollIntoView({ behavior: "smooth" });
+}
+
+function clearFilters() {
+  $("brand").value = "";
+  $("q").value = "";
+  $("sort").value = "new";
+  filterPhones();
+}
+
+function favorite(id) {
+  id = String(id);
+  saved.has(id) ? saved.delete(id) : saved.add(id);
+  filterPhones();
+}
+
+function openForm() {
+  $("modal").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeForm() {
+  $("modal").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function toast(s) {
+  const t = $("toast");
+  t.textContent = s;
+  t.classList.add("show");
+  setTimeout(() => t.classList.remove("show"), 3200);
+}
+
+async function loadPhones() {
+  try {
+    const response = await fetch(API);
+    if (!response.ok) throw new Error("Could not load listings");
+    phones = await response.json();
+    filterPhones();
+  } catch (error) {
+    phones = [];
+    render();
+    toast("Could not load listings. Please refresh and try again.");
+    console.error(error);
+  }
+}
+
+$("sellForm").addEventListener("submit", async e => {
+  e.preventDefault();
+
+  if ($("fimage").files.length) {
+    toast("Photo uploads are not connected yet. Please remove the photo and continue.");
+    return;
+  }
+
+  const listing = {
+    brand: $("fbrand").value,
+    model: $("fmodel").value.trim(),
+    price: Number($("fprice").value),
+    condition: $("fcondition").value,
+    storage: $("fstorage").value,
+    location: $("flocation").value.trim(),
+    seller: $("fseller").value.trim(),
+    whatsapp: $("fphone").value.trim(),
+    description: $("fdesc").value.trim()
+  };
+
+  try {
+    const response = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(listing)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || "Could not save listing");
+    }
+
+    e.target.reset();
+    closeForm();
+    await loadPhones();
+    clearFilters();
+    $("phones").scrollIntoView({ behavior: "smooth" });
+    toast("Phone listing saved successfully!");
+  } catch (error) {
+    toast(error.message || "Could not save listing. Please try again.");
+    console.error(error);
+  }
+});
+
+$("q").addEventListener("input", filterPhones);
+$("brand").addEventListener("change", filterPhones);
+$("sort").addEventListener("change", filterPhones);
+
+$("modal").addEventListener("click", e => {
+  if (e.target.id === "modal") closeForm();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeForm();
+});
+
+$("year").textContent = new Date().getFullYear();
+
+loadPhones();
 </script>
+  
 </body></html>
