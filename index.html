@@ -36,70 +36,147 @@
   
 </div> 
 <script>
-const API = "https://used-phones-backend-c0w6.onrender.com/api/phones";
+          
+"use strict";
+
+// PhoneMarket KE — PostgreSQL API
+const API_URL = "https://used-phones-backend-c0w6.onrender.com/api/phones";
 
 let phones = [];
-let saved = new Set();
+const favorites = new Set();
+let isLoading = false;
 
 const $ = id => document.getElementById(id);
 
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
-  "&":"&amp;", "<":"&lt;", ">":"&gt;",
-  '"':"&quot;", "'":"&#39;"
-}[c]));
+const escapeHTML = value =>
+  String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[char]);
 
-const money = n => "KSh " + Number(n || 0).toLocaleString("en-KE");
+const money = value =>
+  "KSh " + Number(value || 0).toLocaleString("en-KE");
 
-function wa(phone) {
-  let n = String(phone || "").replace(/\D/g, "");
-  if (n.startsWith("0")) n = "254" + n.slice(1);
-  return "https://wa.me/" + n;
+function toast(message) {
+  const element = $("toast");
+  if (!element) {
+    alert(message);
+    return;
+  }
+
+  element.textContent = message;
+  element.classList.add("show");
+
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => {
+    element.classList.remove("show");
+  }, 3500);
 }
 
-function render(arr = phones) {
-  $("count").textContent =
-    arr.length + " listing" + (arr.length === 1 ? "" : "s");
+function whatsappURL(number, message) {
+  let phone = String(number || "").replace(/\D/g, "");
 
+  if (phone.startsWith("0")) {
+    phone = "254" + phone.slice(1);
+  } else if (phone.startsWith("7") || phone.startsWith("1")) {
+    phone = "254" + phone;
+  }
+
+  if (!phone) return "#";
+
+  return "https://wa.me/" + phone +
+    "?text=" + encodeURIComponent(message);
+}
+
+function formatDate(value) {
+  if (!value) return 0;
+  const date = new Date(value).getTime();
+  return Number.isFinite(date) ? date : 0;
+}
+
+function render(list = phones) {
+  const count = $("count");
   const root = $("listings");
 
-  if (!arr.length) {
+  if (!root || !count) return;
+
+  count.textContent =
+    list.length + " listing" + (list.length === 1 ? "" : "s");
+
+  if (!list.length) {
     root.innerHTML = `
       <div class="empty">
-        No phones listed yet. You can publish the first listing!
+        No phones found.
+        Try another search, or be the first to publish a listing.
+        <br>
+        <button class="btn light" onclick="clearFilters()">
+          Clear filters
+        </button>
       </div>`;
     return;
   }
 
-  root.innerHTML = arr.map(p => {
-    const id = JSON.stringify(p.id);
-    const seller = p.seller || "Seller";
-    const phone = p.whatsapp || "";
-    const desc = p.description || "Contact seller for details.";
-    const photo = p.photo_url
-      ? `<img src="${esc(p.photo_url)}" alt="${esc(p.brand + " " + p.model)}">`
+  root.innerHTML = list.map(phone => {
+    const id = JSON.stringify(String(phone.id));
+    const brand = escapeHTML(phone.brand);
+    const model = escapeHTML(phone.model);
+    const seller = escapeHTML(phone.seller || "Seller");
+    const description = escapeHTML(
+      phone.description || "Contact seller for details."
+    );
+    const condition = escapeHTML(phone.condition || "Used");
+    const storage = escapeHTML(phone.storage || "Not specified");
+    const location = escapeHTML(phone.location || "Not specified");
+    const photoURL = String(phone.photo_url || "").trim();
+    const safePhoto = /^https?:\/\/\S+$/i.test(photoURL)
+      ? escapeHTML(photoURL)
+      : "";
+
+    const photo = safePhoto
+      ? `<img src="${safePhoto}" alt="${brand} ${model}" loading="lazy">`
       : "📱";
+
+    const isFavorite = favorites.has(String(phone.id));
+    const contact = whatsappURL(
+      phone.whatsapp,
+      `Hi ${phone.seller || "seller"}, I'm interested in your ${phone.brand} ${phone.model} on PhoneMarket KE.`
+    );
 
     return `
       <article class="card">
         <div class="photo">
           ${photo}
-          <span class="tag">${esc(p.condition || "Used")}</span>
-          <button class="heart" onclick="favorite(${id})"
-            aria-label="Save listing">${saved.has(String(p.id)) ? "♥" : "♡"}</button>
+          <span class="tag">${condition}</span>
+          <button class="heart"
+            type="button"
+            onclick="favorite(${id})"
+            aria-label="Save listing">
+            ${isFavorite ? "♥" : "♡"}
+          </button>
         </div>
+
         <div class="body">
-          <h3>${esc(p.brand)} ${esc(p.model)}</h3>
-          <div class="price">${money(p.price)}</div>
+          <h3>${brand} ${model}</h3>
+          <div class="price">${money(phone.price)}</div>
+
           <div class="details">
-            <span>💾 ${esc(p.storage || "Not specified")}</span>
-            <span>📍 ${esc(p.location || "Not specified")}</span>
+            <span>💾 ${storage}</span>
+            <span>📍 ${location}</span>
           </div>
-          <p class="desc">${esc(desc)}</p>
+
+          <p class="desc">${description}</p>
+
           <div class="sellerrow">
-            <span class="seller">Seller: ${esc(seller)}</span>
+            <span class="seller">Seller: ${seller}</span>
             <a class="btn primary small"
-              href="${wa(phone)}?text=${encodeURIComponent("Hi " + seller + ", I'm interested in your " + p.brand + " " + p.model + " on PhoneMarket KE.")}"
-              target="_blank" rel="noopener">WhatsApp ↗</a>
+              href="${contact}"
+              target="_blank"
+              rel="noopener noreferrer">
+              WhatsApp ↗
+            </a>
           </div>
         </div>
       </article>`;
@@ -107,29 +184,40 @@ function render(arr = phones) {
 }
 
 function filterPhones() {
-  const q = $("q").value.trim().toLowerCase();
-  const b = $("brand").value;
-  const s = $("sort").value;
+  const query = ($("q")?.value || "").trim().toLowerCase();
+  const brand = $("brand")?.value || "";
+  const sort = $("sort")?.value || "new";
 
-  let a = phones.filter(p =>
-    (!b || p.brand === b) &&
-    (!q || [
-      p.brand, p.model, p.location, p.condition,
-      p.storage, p.description
-    ].join(" ").toLowerCase().includes(q))
-  );
+  let results = phones.filter(phone => {
+    const matchesBrand = !brand || phone.brand === brand;
 
-  if (s === "low") a.sort((x, y) => Number(x.price) - Number(y.price));
-  else if (s === "high") a.sort((x, y) => Number(y.price) - Number(x.price));
-  else a.sort((x, y) =>
-    new Date(y.createdAt || 0) - new Date(x.createdAt || 0)
-  );
+    const searchable = [
+      phone.brand,
+      phone.model,
+      phone.location,
+      phone.condition,
+      phone.storage,
+      phone.description
+    ].join(" ").toLowerCase();
 
-  render(a);
+    return matchesBrand && (!query || searchable.includes(query));
+  });
+
+  if (sort === "low") {
+    results.sort((a, b) => Number(a.price) - Number(b.price));
+  } else if (sort === "high") {
+    results.sort((a, b) => Number(b.price) - Number(a.price));
+  } else {
+    results.sort(
+      (a, b) => formatDate(b.createdAt) - formatDate(a.createdAt)
+    );
+  }
+
+  render(results);
 }
 
-function pick(b) {
-  $("brand").value = b;
+function pick(brand) {
+  $("brand").value = brand;
   $("q").value = "";
   filterPhones();
   $("phones").scrollIntoView({ behavior: "smooth" });
@@ -144,7 +232,13 @@ function clearFilters() {
 
 function favorite(id) {
   id = String(id);
-  saved.has(id) ? saved.delete(id) : saved.add(id);
+
+  if (favorites.has(id)) {
+    favorites.delete(id);
+  } else {
+    favorites.add(id);
+  }
+
   filterPhones();
 }
 
@@ -158,37 +252,62 @@ function closeForm() {
   document.body.style.overflow = "";
 }
 
-function toast(s) {
-  const t = $("toast");
-  t.textContent = s;
-  t.classList.add("show");
-  setTimeout(() => t.classList.remove("show"), 3200);
-}
+async function loadPhones(showMessage = false) {
+  if (isLoading) return;
+  isLoading = true;
 
-async function loadPhones() {
   try {
-    const response = await fetch(API);
-    if (!response.ok) throw new Error("Could not load listings");
-    phones = await response.json();
+    const response = await fetch(API_URL, {
+      method: "GET",
+      headers: { "Accept": "application/json" }
+    });
+
+    if (!response.ok) {
+      throw new Error("Server returned HTTP " + response.status);
+    }
+
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+      throw new Error("Unexpected response from the listings API.");
+    }
+
+    phones = data;
     filterPhones();
+
+    if (showMessage) {
+      toast("Phone listings refreshed.");
+    }
   } catch (error) {
-    phones = [];
-    render();
-    toast("Could not load listings. Please refresh and try again.");
-    console.error(error);
+    console.error("Loading listings failed:", error);
+
+    render([]);
+    toast("Could not load listings. Check your internet and try again.");
+  } finally {
+    isLoading = false;
   }
 }
 
-$("sellForm").addEventListener("submit", async e => {
-  e.preventDefault();
+async function publishPhone(event) {
+  event.preventDefault();
 
-  if ($("fimage").files.length) {
-    toast("Photo uploads are not connected yet. Please remove the photo and continue.");
+  const submitButton = $("sellForm").querySelector(
+    'button[type="submit"]'
+  );
+
+  if (submitButton.disabled) return;
+
+  const fileInput = $("fimage");
+  const selectedFile = fileInput?.files?.[0];
+
+  // This backend accepts photo URLs, not image-file uploads.
+  if (selectedFile) {
+    toast("Photo uploads are not connected yet. Remove the photo and try again.");
     return;
   }
 
   const listing = {
-    brand: $("fbrand").value,
+    brand: $("fbrand").value.trim(),
     model: $("fmodel").value.trim(),
     price: Number($("fprice").value),
     condition: $("fcondition").value,
@@ -199,46 +318,80 @@ $("sellForm").addEventListener("submit", async e => {
     description: $("fdesc").value.trim()
   };
 
+  if (
+    !listing.brand ||
+    !listing.model ||
+    !Number.isFinite(listing.price) ||
+    listing.price <= 0 ||
+    !listing.location ||
+    !listing.seller ||
+    !listing.whatsapp
+  ) {
+    toast("Please complete all required fields correctly.");
+    return;
+  }
+
+  submitButton.disabled = true;
+  submitButton.textContent = "Publishing...";
+
   try {
-    const response = await fetch(API, {
+    const response = await fetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
       body: JSON.stringify(listing)
     });
 
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(result.error || "Could not save listing");
+      throw new Error(
+        result.error || "The server could not save this listing."
+      );
     }
 
-    e.target.reset();
+    $("sellForm").reset();
     closeForm();
+
     await loadPhones();
+
     clearFilters();
     $("phones").scrollIntoView({ behavior: "smooth" });
-    toast("Phone listing saved successfully!");
+    toast("Your phone listing was saved to the server!");
   } catch (error) {
-    toast(error.message || "Could not save listing. Please try again.");
-    console.error(error);
-  }
-});
+    console.error("Publishing listing failed:", error);
 
+    toast(
+      error.message.includes("Failed to fetch")
+        ? "Could not reach the server. Check the backend and internet connection."
+        : error.message
+    );
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = "Publish listing";
+  }
+}
+
+$("sellForm").addEventListener("submit", publishPhone);
 $("q").addEventListener("input", filterPhones);
 $("brand").addEventListener("change", filterPhones);
 $("sort").addEventListener("change", filterPhones);
 
-$("modal").addEventListener("click", e => {
-  if (e.target.id === "modal") closeForm();
+$("modal").addEventListener("click", event => {
+  if (event.target.id === "modal") closeForm();
 });
 
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape") closeForm();
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") closeForm();
 });
 
 $("year").textContent = new Date().getFullYear();
 
+// Load saved listings from PostgreSQL when the page opens.
 loadPhones();
+  
 </script>
   
 </body></html>
